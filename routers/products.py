@@ -1,9 +1,11 @@
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 
 from schemas.product import ProductCreate, ProductRead, ProductUpdate
 from services.products import ProductService, get_product_service
+from services.pdf_generator import generate_products_pdf
 
 logger = logging.getLogger(__name__)
 
@@ -27,6 +29,30 @@ async def get_products(
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to get products",
+        ) from exc
+
+
+@router.get(
+    path="/report",
+    summary="Generate a PDF report of all products",
+    tags=["Products"],
+)
+async def get_products_report(
+    product_service: ProductService = Depends(get_product_service),
+):
+    try:
+        products = await product_service.get_all()
+        filepath = generate_products_pdf(products=products)
+        return FileResponse(
+            path=filepath,
+            media_type="application/pdf",
+            filename="products_report.pdf",
+        )
+    except Exception as exc:
+        logger.exception("Failed to generate products report")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to generate report",
         ) from exc
 
 

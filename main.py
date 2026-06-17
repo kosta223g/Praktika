@@ -1,10 +1,12 @@
 from fastapi import FastAPI, status, HTTPException
 from settings.db import ping
 from routers.products import router as products_router
+from routers.files import router as files_router
 
 
 app = FastAPI()
 app.include_router(products_router)
+app.include_router(files_router)
 
 
 @app.get("/")
