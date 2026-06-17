@@ -25,7 +25,14 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 db_url = db_settings.DATABASE_URL
-if "@db:" in db_url:
+import socket
+try:
+    socket.gethostbyname("db")
+    is_docker = True
+except socket.gaierror:
+    is_docker = False
+
+if "@db:" in db_url and not is_docker:
     db_url = db_url.replace("@db:", "@127.0.0.1:")
 
 config.set_main_option("sqlalchemy.url", db_url)
