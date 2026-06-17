@@ -3,6 +3,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from models.product import Product
@@ -78,6 +79,12 @@ async def create_product(product_data: ProductCreate, session: SessionDepend):
 
     except HTTPException:
         raise
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error: check if category_id exists.",
+        ) from exc
     except Exception as exc:
         logger.exception("Failed to create product")
         raise HTTPException(
@@ -115,6 +122,12 @@ async def update_product(
 
     except HTTPException:
         raise
+    except IntegrityError as exc:
+        await session.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Database integrity error: check if category_id exists.",
+        ) from exc
     except Exception as exc:
         logger.exception("Failed to update product with id %s", product_id)
         raise HTTPException(
