@@ -17,6 +17,9 @@ class User(Base):
     name: Mapped[str] = mapped_column(String(100))
     email: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     phone: Mapped[str] = mapped_column(String(20))
+    hashed_password: Mapped[str] = mapped_column(String(200), server_default="")
+    is_active: Mapped[bool] = mapped_column(default=True, server_default="true")
+    role: Mapped[str] = mapped_column(String(20), default="user", server_default="user")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.now)
 
     # Relationships

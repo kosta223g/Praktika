@@ -6,6 +6,8 @@ from fastapi.responses import FileResponse
 from schemas.product import ProductCreate, ProductRead, ProductUpdate
 from services.products import ProductService, get_product_service
 from services.pdf_generator import generate_products_pdf
+from models.user import User
+from routers.dependencies import get_current_user, get_admin_user
 
 logger = logging.getLogger(__name__)
 
@@ -95,6 +97,7 @@ async def get_product(
 async def create_product(
     product_data: ProductCreate,
     product_service: ProductService = Depends(get_product_service),
+    current_user: User = Depends(get_current_user),
 ):
     try:
         return await product_service.create(data=product_data)
@@ -149,6 +152,7 @@ async def update_product(
 async def delete_product(
     product_id: int,
     product_service: ProductService = Depends(get_product_service),
+    admin_user: User = Depends(get_admin_user),
 ):
     try:
         deleted = await product_service.delete(product_id=product_id)
