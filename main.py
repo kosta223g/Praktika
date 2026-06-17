@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, status, HTTPException
 from settings.db import engine, ping
 from models import Base
+from routers.products import router as products_router
 
 
 @asynccontextmanager
@@ -13,6 +14,7 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+app.include_router(products_router)
 
 
 @app.get("/")
