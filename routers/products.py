@@ -1,20 +1,13 @@
 import logging
-from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
-from sqlalchemy.ext.asyncio import AsyncSession
 
-from models.product import Product
 from schemas.product import ProductCreate, ProductRead, ProductUpdate
-from settings.db import get_db
+from services.products import ProductService, get_product_service
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/products", tags=["Products"])
-
-SessionDepend = Annotated[AsyncSession, Depends(get_db)]
 
 
 @router.get(
@@ -22,10 +15,11 @@ SessionDepend = Annotated[AsyncSession, Depends(get_db)]
     response_model=list[ProductRead],
     tags=["Products"],
 )
-async def get_products(session: SessionDepend):
+async def get_products(
+    product_service: ProductService = Depends(get_product_service),
+):
     try:
-        result = await session.execute(select(Product))
-        return result.scalars().all()
+        return await product_service.get_all()
     except HTTPException:
         raise
     except Exception as exc:
@@ -41,14 +35,17 @@ async def get_products(session: SessionDepend):
     response_model=ProductRead,
     tags=["Products"],
 )
-async def get_product(product_id: int, session: SessionDepend):
+async def get_product(
+    product_id: int,
+    product_service: ProductService = Depends(get_product_service),
+):
     try:
-        result = await session.execute(select(Product).where(Product.id == product_id))
-        product = result.scalars().first()
+        product = await product_service.get_by_id(product_id=product_id)
 
         if not product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found",
             )
 
         return product
@@ -69,22 +66,14 @@ async def get_product(product_id: int, session: SessionDepend):
     status_code=status.HTTP_201_CREATED,
     tags=["Products"],
 )
-async def create_product(product_data: ProductCreate, session: SessionDepend):
+async def create_product(
+    product_data: ProductCreate,
+    product_service: ProductService = Depends(get_product_service),
+):
     try:
-        new_product = Product(**product_data.model_dump())
-        session.add(new_product)
-        await session.commit()
-        await session.refresh(new_product)
-        return new_product
-
+        return await product_service.create(data=product_data)
     except HTTPException:
         raise
-    except IntegrityError as exc:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Database integrity error: check if category_id exists.",
-        ) from exc
     except Exception as exc:
         logger.exception("Failed to create product")
         raise HTTPException(
@@ -101,33 +90,23 @@ async def create_product(product_data: ProductCreate, session: SessionDepend):
 async def update_product(
     product_id: int,
     product_update: ProductUpdate,
-    session: SessionDepend,
+    product_service: ProductService = Depends(get_product_service),
 ):
     try:
-        result = await session.execute(select(Product).where(Product.id == product_id))
-        existing_product = result.scalars().first()
+        product = await product_service.update(
+            product_id=product_id, data=product_update
+        )
 
-        if not existing_product:
+        if not product:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found",
             )
 
-        for field, value in product_update.model_dump(exclude_unset=True).items():
-            setattr(existing_product, field, value)
-
-        session.add(existing_product)
-        await session.commit()
-        await session.refresh(existing_product)
-        return existing_product
+        return product
 
     except HTTPException:
         raise
-    except IntegrityError as exc:
-        await session.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Database integrity error: check if category_id exists.",
-        ) from exc
     except Exception as exc:
         logger.exception("Failed to update product with id %s", product_id)
         raise HTTPException(
@@ -141,18 +120,19 @@ async def update_product(
     status_code=status.HTTP_204_NO_CONTENT,
     tags=["Products"],
 )
-async def delete_product(product_id: int, session: SessionDepend):
+async def delete_product(
+    product_id: int,
+    product_service: ProductService = Depends(get_product_service),
+):
     try:
-        result = await session.execute(select(Product).where(Product.id == product_id))
-        existing_product = result.scalars().first()
+        deleted = await product_service.delete(product_id=product_id)
 
-        if not existing_product:
+        if not deleted:
             raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND, detail="Product not found"
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Product not found",
             )
 
-        await session.delete(existing_product)
-        await session.commit()
         return None
 
     except HTTPException:

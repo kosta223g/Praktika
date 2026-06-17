@@ -1,5 +1,5 @@
 from fastapi import FastAPI, status, HTTPException
-from settings.db import engine, ping
+from settings.db import ping
 from routers.products import router as products_router
 
 

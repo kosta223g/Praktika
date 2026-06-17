@@ -1,0 +1,69 @@
+from typing import Sequence
+from fastapi import Depends, HTTPException, status
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
+
+from models import Product
+from schemas.product import ProductCreate, ProductUpdate
+from settings.db import get_db
+
+
+class ProductService:
+    def __init__(self, db: AsyncSession):
+        self.db = db
+
+    async def get_all(self) -> Sequence[Product]:
+        result = await self.db.execute(select(Product))
+        return result.scalars().all()
+
+    async def get_by_id(self, product_id: int) -> Product | None:
+        result = await self.db.execute(select(Product).where(Product.id == product_id))
+        return result.scalars().first()
+
+    async def create(self, data: ProductCreate) -> Product:
+        try:
+            new_product = Product(**data.model_dump())
+            self.db.add(new_product)
+            await self.db.commit()
+            await self.db.refresh(new_product)
+            return new_product
+        except IntegrityError as exc:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Database integrity error: check if category_id exists.",
+            ) from exc
+
+    async def update(self, product_id: int, data: ProductUpdate) -> Product | None:
+        product = await self.get_by_id(product_id)
+        if not product:
+            return None
+
+        for field, value in data.model_dump(exclude_unset=True).items():
+            setattr(product, field, value)
+
+        try:
+            self.db.add(product)
+            await self.db.commit()
+            await self.db.refresh(product)
+            return product
+        except IntegrityError as exc:
+            await self.db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Database integrity error: check if category_id exists.",
+            ) from exc
+
+    async def delete(self, product_id: int) -> bool:
+        product = await self.get_by_id(product_id)
+        if not product:
+            return False
+
+        await self.db.delete(product)
+        await self.db.commit()
+        return True
+
+
+async def get_product_service(db: AsyncSession = Depends(get_db)) -> ProductService:
+    return ProductService(db)
